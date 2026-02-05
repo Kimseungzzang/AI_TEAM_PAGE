@@ -1,6 +1,18 @@
 ﻿import React from 'react';
 
-function Sidebar({ teams, selectedTeamId, setSelectedTeamId, sessions, onConnectMember, onConnectTeam, onAddTeam, onAddMember }) {
+function Sidebar({
+  teams,
+  selectedTeamId,
+  setSelectedTeamId,
+  sessions,
+  onConnectMember,
+  onConnectTeam,
+  onAddTeam,
+  onAddMember,
+  cliTargets,
+  onCliTargetChange,
+  wsReadyMap
+}) {
   return (
     <aside className="sidebar">
       <label className="side-label">Team</label>
@@ -28,6 +40,18 @@ function Sidebar({ teams, selectedTeamId, setSelectedTeamId, sessions, onConnect
           <div key={s.sessionId} className="side-item">
             <span className="side-role">{s.role}</span>
             <span className="side-name">{s.name}</span>
+            {wsReadyMap && wsReadyMap[s.sessionId] && (
+              <span className="side-status">웹소켓 연결 완료</span>
+            )}
+            <select
+              className="side-cli-select"
+              value={(cliTargets && cliTargets[s.sessionId]) || 'claude'}
+              onChange={(e) => onCliTargetChange(s.sessionId, e.target.value)}
+            >
+              <option value="claude">claude</option>
+              <option value="codex">codex</option>
+              <option value="gemini">gemini</option>
+            </select>
             <button type="button" className="side-connect" onClick={() => onConnectMember(s)}>
               연결
             </button>
