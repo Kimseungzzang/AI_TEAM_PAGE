@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir \"C:\\\\Users\\\\DesignPC\\\\Desktop\\\\ai dashboard\\\\team-manager\\\\web_terminal\")",
+      "Bash(dir:*)",
+      "Bash(npm run build:*)"
+    ]
+  }
+}
