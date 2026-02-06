@@ -1,7 +1,7 @@
 import React from 'react';
 import TerminalCard from './TerminalCard';
 
-function TerminalGrid({ sessions, outputs, onData, onAttach }) {
+function TerminalGrid({ sessions, outputs }) {
   return (
     <section className="terminal-grid">
       {sessions.map((s) => (
@@ -9,8 +9,6 @@ function TerminalGrid({ sessions, outputs, onData, onAttach }) {
           key={s.sessionId}
           session={s}
           output={outputs[s.sessionId] || ''}
-          onData={onData}
-          onAttach={onAttach}
         />
       ))}
     </section>

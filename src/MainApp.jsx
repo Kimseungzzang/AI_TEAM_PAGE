@@ -4,7 +4,6 @@ import { makeId } from './utils';
 import { apiRequest } from './apiClient';
 
 import Sidebar from './components/Sidebar';
-import TerminalGrid from './components/TerminalGrid';
 
 const WS_URL = process.env.REACT_APP_PTY_WS_URL || 'ws://localhost:8080/ws/terminal';
 
@@ -18,7 +17,9 @@ function MainApp() {
   const [memberForm, setMemberForm] = useState({ name: '', role: 'LEADER', config: '' });
   const [cliTargets, setCliTargets] = useState({});
   const [wsReadyMap, setWsReadyMap] = useState({});
-  const [outputs, setOutputs] = useState({});
+  const [outputLog, setOutputLog] = useState('');
+  const [terminalInput, setTerminalInput] = useState('');
+  const [terminalTarget, setTerminalTarget] = useState('all');
   const runtime = useRef(new Map());
 
   const currentTeam = useMemo(
@@ -89,8 +90,7 @@ function MainApp() {
       role: member.role,
       name: member.name,
       ws,
-      term: null,
-      fitAddon: null,
+      cli: cliTargets[member.sessionId] || 'claude',
       initialized: false,
       ready: false,
       initSent: false
@@ -115,20 +115,60 @@ function MainApp() {
 
   const handleCliTargetChange = useCallback((sessionId, value) => {
     setCliTargets((prev) => ({ ...prev, [sessionId]: value }));
+    const state = runtime.current.get(sessionId);
+    if (state) {
+      state.cli = value;
+    }
   }, []);
 
-  const handleTerminalData = useCallback((sessionId, data) => {
+  function sendToSession(sessionId, payload) {
     const state = runtime.current.get(sessionId);
     if (!state || !state.ws || state.ws.readyState !== WebSocket.OPEN) return;
-    state.ws.send(JSON.stringify({ type: 'input', data }));
-  }, []);
+    const message = payload && typeof payload === 'object' ? payload : { type: 'input', data: String(payload || '') };
+    state.ws.send(JSON.stringify(message));
+  }
 
-  const handleAttachTerminal = useCallback((sessionId, term, fitAddon) => {
-    const state = runtime.current.get(sessionId);
-    if (!state) return;
-    state.term = term;
-    state.fitAddon = fitAddon;
-  }, []);
+  function getMemberBySessionId(sessionId) {
+    return currentMembers.find((member) => member.sessionId === sessionId) || null;
+  }
+
+  function buildCliPayload(cli, configPath, text) {
+    const configLine = configPath
+      ? 'Config file path: ' + configPath + '. Read it first and answer.\n'
+      : '';
+    return {
+      type: 'input',
+      cli,
+      data: configLine + text
+    };
+  }
+
+  function getConfigPathFromMember(member) {
+    if (!member || !member.config) return '';
+    const lines = String(member.config)
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+    return lines.length ? lines[lines.length - 1] : '';
+  }
+
+  function handleTerminalSend() {
+    const text = terminalInput;
+    if (!text.trim()) return;
+    if (terminalTarget === 'all') {
+      currentMembers.forEach((member) => {
+        const state = runtime.current.get(member.sessionId);
+        const cli = state?.cli || 'claude';
+        sendToSession(member.sessionId, buildCliPayload(cli, member.config, text));
+      });
+    } else {
+      const member = getMemberBySessionId(terminalTarget);
+      const state = runtime.current.get(terminalTarget);
+      const cli = state?.cli || 'claude';
+      sendToSession(terminalTarget, buildCliPayload(cli, member?.config, text));
+    }
+    setTerminalInput('');
+  }
 
   function openTeamModal() {
     setTeamForm({ name: '', project: '' });
@@ -207,43 +247,42 @@ function MainApp() {
     console.log(`${state.name}`, chunk);
 
     if (payload && typeof payload === 'object') {
-      if (payload.type === 'ready') {
-        state.ready = true;
-        return;
-      }
       if (payload.type === 'ws_ready') {
         setWsReadyMap((prev) => ({ ...prev, [sessionId]: true }));
+        if (!state.initSent) {
+          const member = getMemberBySessionId(sessionId);
+          const configPath = getConfigPathFromMember(member);
+          const cli = state?.cli || 'claude';
+          const pathLine = configPath ? `Config file path: ${configPath}. ` : '';
+          const msg = pathLine + 'Read config and start. This is the first start.';
+          sendToSession(sessionId, { type: 'input', cli, data: msg });
+          state.initSent = true;
+        }
         return;
       }
       if (payload.type === 'shell_ready') {
         if (!state.initSent) {
-          const target = cliTargets[sessionId] || 'claude';
-          setTimeout(() => {
-            state.ws.send(JSON.stringify({ type: 'input', data: target + '\r' }));
-            state.initSent = true;
-          }, 300);
+          state.initSent = true;
         }
         return;
       }
       if (payload.type === 'terminal' && payload.data) {
-        if (state.term) {
-          state.term.write(payload.data);
-        }
         appendOutput(sessionId, stripAnsi(payload.data));
         return;
       }
-    }
-    if (state.term) {
-      state.term.write(chunk);
     }
     appendOutput(sessionId, stripAnsi(chunk));
   }
 
   function appendOutput(sessionId, text) {
-    setOutputs((prev) => ({
-      ...prev,
-      [sessionId]: (prev[sessionId] || '') + text
-    }));
+    const state = runtime.current.get(sessionId);
+    const name = state?.name || sessionId;
+    const status = wsReadyMap[sessionId] ? 'ready' : 'connecting';
+    const prefix = `[${status}:${name}] `;
+    const lines = (text || '').split('\n');
+    const stamped = lines.map((line, idx) => (idx === lines.length - 1 && line === '' ? '' : `${prefix}${line}`));
+    const block = stamped.join('\n');
+    setOutputLog((prev) => prev + block + (block.endsWith('\n') ? '' : '\n'));
   }
 
   function stripAnsi(text) {
@@ -272,12 +311,35 @@ function MainApp() {
       />
 
       <main className="main">
-        <TerminalGrid
-          sessions={currentMembers}
-          outputs={outputs}
-          onData={handleTerminalData}
-          onAttach={handleAttachTerminal}
-        />
+        <div className="terminal-controls">
+          <select
+            className="terminal-select"
+            value={terminalTarget}
+            onChange={(e) => setTerminalTarget(e.target.value)}
+          >
+            <option value="all">전체</option>
+            {currentMembers.map((member) => (
+              <option key={member.sessionId} value={member.sessionId}>
+                {member.name}
+              </option>
+            ))}
+          </select>
+          <input
+            className="terminal-input"
+            value={terminalInput}
+            onChange={(e) => setTerminalInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                handleTerminalSend();
+              }
+            }}
+            placeholder="명령 입력..."
+          />
+          <button type="button" className="terminal-send" onClick={handleTerminalSend}>
+            전송
+          </button>
+        </div>
+        <textarea className="terminal-text terminal-merged" value={outputLog} readOnly />
       </main>
 
       {showTeamModal && (

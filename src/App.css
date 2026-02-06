@@ -348,47 +348,67 @@ body {
   background: #121720;
 }
 
-.terminal-body {
+.terminal-text {
   flex: 1;
   min-height: 0;
   width: 100%;
   border: none;
   outline: none;
   background: #0f1115;
-  padding: 0;
-  height: 100%;
-}
-
-.terminal-split {
-  flex: 1;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  padding: 8px;
-  background: #0f1115;
-}
-
-.terminal-xterm {
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  overflow: hidden;
-}
-
-.terminal-text {
-  border: 1px solid var(--border);
-  border-radius: 6px;
   padding: 12px;
+  height: 100%;
+  border-radius: 0;
   resize: none;
   color: #e6e6e6;
   font-family: Consolas, "Courier New", monospace;
   font-size: 12px;
   line-height: 1.4;
-  background: #0f1115;
   overflow: auto;
 }
 
-.terminal-xterm .xterm,
-.terminal-xterm .xterm-viewport,
-.terminal-xterm .xterm-screen {
-  height: 100%;
+.terminal-merged {
+  margin: 10px 16px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.terminal-controls {
+  display: flex;
+  gap: 8px;
+  padding: 10px 16px 0;
+  align-items: center;
+}
+
+.terminal-select {
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: #0f1319;
+  color: var(--text);
+  border: 1px solid var(--border);
+  font-size: 12px;
+  min-width: 120px;
+}
+
+.terminal-input {
+  flex: 1;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: #0f1319;
+  color: var(--text);
+  font-size: 12px;
+}
+
+.terminal-send {
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: #0f1319;
+  color: var(--text);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.terminal-send:hover {
+  border-color: var(--accent);
 }
